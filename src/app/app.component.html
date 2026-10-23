@@ -1,0 +1,83 @@
+<header class="topbar" [attr.inert]="focus() ? '' : null">
+  <a class="brand" href="#" (click)="$event.preventDefault(); tab.set('explore')" aria-label="Forma home">
+    <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="20" cy="20" rx="17" ry="7" transform="rotate(-40 20 20)"/><ellipse cx="20" cy="20" rx="17" ry="7" transform="rotate(20 20 20)"/><ellipse cx="20" cy="20" rx="17" ry="7" transform="rotate(80 20 20)"/></g></svg>
+    <span>forma<span class="brand-dot">.</span></span>
+  </a>
+  <nav class="main-nav" aria-label="Main navigation">
+    <button [class.active]="tab() === 'explore'" (click)="tab.set('explore')">Explore</button>
+    <button aria-label="Saved studies" [class.active]="tab() === 'saved'" (click)="tab.set('saved')">Saved studies <span class="count">{{ saved().length }}</span></button>
+  </nav>
+  <div class="header-actions">
+    <button class="icon-button about-button" aria-label="Help" title="Help" (click)="openAbout()"><app-icon name="info" /></button>
+    <button class="button secondary save-button" (click)="saveStudy()" [disabled]="tab() !== 'explore' || busy() || !!renderError()"><app-icon name="bookmark" /><span>Save study</span></button>
+    <button class="button primary" (click)="exportPng()" [disabled]="exporting()"><app-icon name="download" /><span>{{ exporting() ? 'Exporting…' : 'Export PNG' }}</span></button>
+  </div>
+</header>
+
+@if (tab() === 'explore') {
+  <main class="studio" [class.focus-mode]="focus()">
+    <aside class="library" aria-label="Generator library">
+      <h1>Generators</h1>
+      <div class="search-box"><app-icon name="search" /><input aria-label="Find a generator" placeholder="Find a generator" [value]="search()" (input)="search.set($any($event.target).value)" /></div>
+      <div class="generator-list">
+        @for (item of filteredAlgorithms(); track item.id; let index = $index) {
+          <button class="generator-card" [class.selected]="recipe().algorithm === item.id" [attr.aria-label]="item.name" [attr.aria-pressed]="recipe().algorithm === item.id" (click)="selectAlgorithm(item.id)">
+            <app-art-preview [recipe]="thumbnails[item.id]" />
+            <span class="generator-card-bottom"><span>{{ item.name }}</span></span>
+          </button>
+        } @empty { <p class="empty-search">No generators match. Try “flow” or “waves”.</p> }
+      </div>
+    </aside>
+
+    <section #artWorkspace class="workspace" aria-label="Artwork workspace">
+      <div class="workspace-heading">
+        <h2>{{ algorithm().name }}</h2>
+        <div class="history-actions">
+          <button class="icon-button" aria-label="Undo" title="Undo (Ctrl+Z)" [disabled]="!canUndo()" (click)="undo()"><app-icon name="undo" /></button>
+          <button class="icon-button" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" [disabled]="!canRedo()" (click)="redo()"><app-icon name="redo" /></button>
+          <span class="divider"></span>
+          <button class="icon-button" [attr.aria-label]="focus() ? 'Exit fullscreen' : 'Fullscreen'" [attr.title]="focus() ? 'Exit fullscreen (Esc)' : 'Fullscreen'" [attr.aria-pressed]="focus()" (click)="toggleFullscreen()"><app-icon [name]="focus() ? 'close' : 'fullscreen'" /></button>
+        </div>
+      </div>
+      <p class="art-description">{{ algorithm().description }}</p>
+      <div class="canvas-stage">
+        <div class="canvas-mat" [style.aspect-ratio]="aspect()" [style.--art-aspect]="aspect()" [class.rendering]="busy()">
+          <canvas #artCanvas data-testid="art-canvas" [attr.data-render-id]="renderId()" role="img" [attr.aria-label]="algorithm().name + ' generative artwork, seed ' + recipe().seed"></canvas>
+          @if (renderError()) { <div class="render-error" role="alert">{{ renderError() }}<button class="button secondary" (click)="scheduleRender()">Try again</button></div> }
+        </div>
+        <span class="canvas-corner top-left"></span><span class="canvas-corner bottom-right"></span>
+      </div>
+      <div class="artwork-meta"><span><span class="status-dot" [class.working]="busy()"></span><span data-testid="render-status">{{ busy() ? 'Rendering' : renderError() ? 'Error' : 'Ready' }}</span><span class="meta-divider">/</span><span data-testid="render-time">{{ renderTime() }} ms</span></span><span>{{ previewWidth() }} × {{ previewHeight() }}<span class="meta-divider">/</span>SEED {{ recipe().seed }}</span></div>
+      <div class="explore-bar"><button class="button seed-action" aria-label="New seed" (click)="newSeed()"><app-icon name="shuffle" />New seed<kbd>N</kbd></button></div>
+      <div class="variation-heading"><span class="section-eyebrow">Variations</span><button class="text-button" (click)="refreshVariations()">Refresh variations <app-icon name="reset" /></button></div>
+      <div class="variations">
+        @for (variation of variations(); track $index; let index = $index) {
+          <button class="variation" (click)="applyRecipe(variation)" [attr.aria-label]="'Apply variation ' + (index + 1)"><app-art-preview [recipe]="variation" /><span>Variation {{ index + 1 }}<app-icon name="arrow" /></span></button>
+        }
+      </div>
+    </section>
+
+    <aside class="inspector" aria-label="Art settings">
+      <div class="inspector-heading"><span><app-icon name="sliders" />Settings</span><button class="icon-button" aria-label="Reset settings" title="Reset this generator" (click)="reset()"><app-icon name="reset" /></button></div>
+      <div class="settings-scroll">
+        <section class="control-section seed-section"><div class="section-heading"><h3>Randomness</h3></div><label class="control-label" for="seed">Seed</label><div class="seed-input"><span>#</span><input id="seed" aria-label="Seed" type="number" min="0" max="4294967295" [value]="recipe().seed" (change)="setGlobal('seed', $any($event.target).valueAsNumber)" /><button class="icon-button" aria-label="Shuffle seed" (click)="newSeed()"><app-icon name="shuffle" /></button></div><button class="randomize-button" (click)="randomize()"><app-icon name="spark" />Randomize settings<app-icon name="arrow" /></button></section>
+        <section class="control-section"><div class="section-heading"><h3>Composition</h3></div>
+          @for (param of algorithm().params; track param.key) {
+            <div class="range-control"><div class="control-label"><label [for]="'param-' + param.key" [title]="param.hint || ''">{{ param.label }}</label><output [for]="'param-' + param.key">{{ formatValue(recipe().params[param.key], param.step) }}</output></div><input [id]="'param-' + param.key" type="range" [min]="param.min" [max]="param.max" [step]="param.step" [value]="recipe().params[param.key]" [style.--range]="rangePercent(recipe().params[param.key], param.min, param.max)" (input)="setParam(param.key, $any($event.target).valueAsNumber)" />@if (param.hint) { <p class="control-hint">{{ param.hint }}</p> }</div>
+          }
+          @if (recipe().algorithm === 'painter') { <div class="source-control"><label class="upload-button" for="source-image"><app-icon name="upload" />{{ sourceName() || 'Upload a source image' }}</label><input id="source-image" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload source image" (change)="uploadImage($event)" /><p class="control-hint">{{ sourceUrl ? 'Source image processed locally.' : 'No source image: using a generated color field.' }}</p>@if (sourceUrl) { <button class="text-button" (click)="clearSource()">Remove source image</button> }</div> }
+        </section>
+        <section class="control-section"><div class="section-heading"><h3>Color & texture</h3></div><div class="control-label"><label for="palette">Palette</label><span>{{ paletteName() }}</span></div><div class="palette-grid" id="palette">@for (palette of palettes; track palette.id) { <button class="palette-option" [class.selected]="recipe().palette === palette.id" [attr.aria-label]="'Palette ' + palette.name" [attr.aria-pressed]="recipe().palette === palette.id" [title]="palette.name" (click)="setPalette(palette.id)">@for (color of palette.colors; track $index) { <span [style.background]="color"></span> }</button> }</div>
+          <div class="background-control"><label for="background">Paper color</label><span>{{ recipe().background }}</span><input id="background" type="color" [value]="recipe().background" (input)="setBackground($any($event.target).value)" /></div>
+          @for (control of styleControls; track control.key) { <div class="range-control"><div class="control-label"><label [for]="control.key">{{ control.label }}</label><output [for]="control.key">{{ formatValue(globalValue(control.key), control.step) }}{{ control.suffix }}</output></div><input [id]="control.key" type="range" [min]="control.min" [max]="control.max" [step]="control.step" [value]="globalValue(control.key)" [style.--range]="rangePercent(globalValue(control.key), control.min, control.max)" (input)="setGlobal(control.key, $any($event.target).valueAsNumber)" /></div> }
+        </section>
+        <section class="control-section"><div class="section-heading"><h3>Canvas</h3></div><div class="control-label"><span>Aspect ratio</span></div><div class="segmented" role="group" aria-label="Canvas aspect ratio">@for (ratio of ratios; track ratio.value) { <button [class.active]="aspect() === ratio.value" [attr.aria-pressed]="aspect() === ratio.value" (click)="setAspect(ratio.value)">{{ ratio.label }}</button> }</div><label class="select-control" for="export-size"><span>Export size</span><select id="export-size" aria-label="Export size" [value]="exportSize()" (change)="exportSize.set($any($event.target).valueAsNumber || +$any($event.target).value)"><option value="1024">1024 px</option><option value="2048">2048 px</option><option value="4096">4096 px</option></select></label><p class="control-hint">PNG · pixels on the longest edge</p></section>
+        <section class="control-section recipe-actions"><button class="text-button" (click)="exportRecipe()"><app-icon name="download" />Export recipe</button><label class="text-button import-label" for="recipe-file"><app-icon name="upload" />Import recipe</label><input id="recipe-file" class="visually-hidden" type="file" accept="application/json,.json" aria-label="Import recipe file" (change)="importRecipe($event)" /><button class="text-button" (click)="copyLink()"><app-icon name="link" />Copy study link</button></section>
+      </div>
+    </aside>
+  </main>
+} @else {
+  <main class="saved-page"><div class="saved-heading"><h1>Saved studies</h1><p>Stored in this browser.</p></div>@if (!saved().length) { <div class="empty-collection"><app-icon name="bookmark" /><h2>No saved studies</h2><p>Use Save study to store the current artwork and settings.</p><button class="button primary" (click)="tab.set('explore')">Open editor<app-icon name="arrow" /></button></div> } @else { <div class="saved-grid">@for (study of saved(); track study.id) { <article class="saved-card"><button class="saved-art" [attr.aria-label]="'Open study ' + study.name" (click)="restoreStudy(study)"><img [src]="study.thumbnail" [alt]="study.name" /></button><div class="saved-card-info"><div><h2>{{ study.name }}</h2><p>SEED {{ study.recipe.seed }} · {{ study.created | date:'MMM d' }}</p></div><button class="icon-button" [attr.aria-label]="'Delete study ' + study.name" (click)="deleteStudy(study.id)"><app-icon name="trash" /></button></div></article> }</div> }</main>
+}
+@if (toast()) { <div class="toast" role="status"><app-icon [name]="toastError() ? 'info' : 'check'" />{{ toast() }}<button class="icon-button" aria-label="Dismiss notification" (click)="toast.set('')"><app-icon name="close" /></button></div> }
+@if (showAbout()) { <div class="modal-backdrop" (click)="closeAbout()"><section class="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title" (click)="$event.stopPropagation()"><button class="icon-button modal-close" aria-label="Close help" (click)="closeAbout()"><app-icon name="close" /></button><h2 id="about-title">Help</h2><p>Changes update the preview automatically. Reuse the seed, settings, and source image to reproduce a study.</p><div class="shortcut-list"><span>New seed <kbd>N</kbd></span><span>Save study <kbd>S</kbd></span><span>Undo <kbd>Ctrl/Cmd Z</kbd></span><span>Redo <kbd>Ctrl/Cmd Shift Z</kbd></span><span>Close dialog or fullscreen <kbd>Esc</kbd></span></div><p class="control-hint">Saved studies are stored in this browser. Export recipes to back up settings and source images. All image processing runs locally.</p><button class="button primary" (click)="closeAbout()">Close</button></section></div> }

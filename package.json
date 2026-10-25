@@ -11,7 +11,9 @@
     "test:ui": "playwright test --ui",
     "benchmark": "node scripts/benchmark.mjs"
   },
-  "engines": { "node": "^22.22.3 || ^24.15.0 || >=26.0.0" },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  },
   "dependencies": {
     "@angular/common": "22.2.3",
     "@angular/compiler": "22.2.3",
@@ -27,5 +29,8 @@
     "@angular/compiler-cli": "22.2.3",
     "@playwright/test": "1.61.1",
     "typescript": "6.0.3"
+  },
+  "overrides": {
+    "vite": "8.3.5"
   }
 }
